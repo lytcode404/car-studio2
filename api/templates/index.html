@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.5.0/fabric.min.js"></script>
+    <style>
+      .background-image {
+        display: inline-block;
+        width: 50px;
+        height: 50px;
+        cursor: pointer;
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Fabric.js Image Manipulation Example</h2>
+    <input type="file" id="imageInput" accept="image/*" />
+    <canvas
+      id="canvas"
+      width="600"
+      height="400"
+      style="border: 1px solid black"
+    ></canvas>
+    <div>
+      <img
+        class="background-image"
+        src="{{ url_for('static', filename='assets/bg1.jpg') }}"
+        alt="Background 1"
+      />
+      <img
+        class="background-image"
+        src="{{ url_for('static', filename='assets/bg2.jpg') }}"
+        alt="Background 2"
+      />
+      <img
+        class="background-image"
+        src="{{ url_for('static', filename='assets/bg3.jpg') }}"
+        alt="Background 3"
+      />
+    </div>
+    <button id="saveButton">Save Merged Image</button>
+
+    <script>
+      const canvas = new fabric.Canvas("canvas", { selection: false });
+
+      // Handle image selection from input
+      const imageInput = document.getElementById("imageInput");
+      imageInput.addEventListener("change", function (event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          const imgSrc = e.target.result;
+
+          // remove image bg;
+          removeImageBackground(imgSrc);
+        };
+
+        reader.readAsDataURL(file);
+      });
+
+      // Function to remove image background
+      function removeImageBackground(imgSrc) {
+        const base64Image = imgSrc.split(",")[1]; // Remove "data:image/png;base64,"
+
+        console.log("Sending image data to server...");
+
+        fetch("/remove_background", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream", // Change content type
+          },
+          body: base64Image, // Send base64 image directly
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            console.log("Received processed image data from server.");
+            const processedImgSrc = "data:image/png;base64," + data.result;
+            // console.log(processedImgSrc);
+            addImageToCanvas(processedImgSrc);
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+      }
+
+      // Function to add image to canvas
+      function addImageToCanvas(imgSrc) {
+        fabric.Image.fromURL(imgSrc, function (img) {
+          img.set({
+            left: 100,
+            top: 100,
+            scaleX: 0.5,
+            scaleY: 0.5,
+            selectable: true,
+            hasControls: true,
+            hasBorders: true,
+          });
+          canvas.add(img);
+          canvas.setActiveObject(img);
+          canvas.renderAll();
+        });
+      }
+
+      // Handle background image clicks
+      const backgroundImages = document.querySelectorAll(".background-image");
+      backgroundImages.forEach((bgImage) => {
+        bgImage.addEventListener("click", function () {
+          const bgSrc = bgImage.getAttribute("src");
+
+          fabric.Image.fromURL(bgSrc, function (bgImg) {
+            canvas.setBackgroundImage(bgImg, canvas.renderAll.bind(canvas), {
+              scaleX: canvas.width / bgImg.width,
+              scaleY: canvas.height / bgImg.height,
+            });
+          });
+        });
+      });
+
+      const saveButton = document.getElementById("saveButton");
+
+
+
+// Handle save button click
+saveButton.addEventListener("click", function () {
+  console.log("Save button clicked");
+
+  // Create a new canvas with higher resolution
+  const mergedCanvas = document.createElement("canvas");
+  mergedCanvas.width = canvas.width * 2; // Double the resolution
+  mergedCanvas.height = canvas.height * 2;
+
+  const mergedContext = mergedCanvas.getContext("2d");
+
+  console.log("Created merged canvas");
+
+  // Draw the background image onto the merged canvas
+  const bgImg = new Image();
+  bgImg.onload = function () {
+    console.log("Background image loaded");
+    mergedContext.drawImage(
+      bgImg,
+      0,
+      0,
+      mergedCanvas.width,
+      mergedCanvas.height
+    );
+
+    // Draw the selected image onto the merged canvas
+    const activeObject = canvas.getActiveObject();
+    if (activeObject && activeObject.type === "image") {
+      console.log("Drawing selected image");
+      const img = new Image();
+      img.onload = function () {
+        console.log("Selected image loaded");
+        const { left, top, width, height } = activeObject.getBoundingRect();
+        mergedContext.drawImage(
+          img,
+          left * 2,
+          top * 2,
+          width * 2,
+          height * 2
+        );
+
+        // Convert the merged canvas to a data URL and create a download link
+        const mergedDataURL = mergedCanvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = mergedDataURL;
+        link.download = "merged_image.png";
+        link.click();
+
+        console.log("Merged image saved");
+      };
+      img.src = activeObject.getSrc(); // Start loading the selected image
+    } else {
+      console.log("No selected image to draw");
+    }
+  };
+  bgImg.src = canvas.backgroundImage._element.src; // Get background image source
+});
+
+    </script>
+  </body>
+</html>
