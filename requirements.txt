@@ -1,3 +1,4 @@
 flask==1.1.2
 rembg==2.0.50
-Flask-Cors==4.0.0
+Pillow==10.0.0
+flask-cors==4.0.0
